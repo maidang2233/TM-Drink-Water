@@ -1,7 +1,7 @@
 #include <windows.h>
 #include <random>
 #include <string>
-#include "ITMPlugin.h" // 假设你已将 PluginInterface.h 重命名为 ITMPlugin.h
+#include "ITMPlugin.h"
 
 class CDrinkWaterPlugin : public ITMPlugin {
 private:
@@ -16,18 +16,18 @@ private:
     }
 
 public:
-    // 对应报错中提到的 PI_Name 等未定义，这里使用整数索引或新版定义的常量
-    virtual const wchar_t* GetInfo(int index) override {
+    // 修正 1: 参数类型必须是 PluginInfoIndex
+    virtual const wchar_t* GetInfo(PluginInfoIndex index) override {
         switch (index) {
-            case 0: return L"喝水提醒";      // Name
-            case 1: return L"随机20-30分钟提醒"; // Description
-            case 2: return L"AI";            // Author
-            case 3: return L"1.0";           // Version
+            case PI_Name: return L"喝水提醒";
+            case PI_Description: return L"随机20-30分钟提醒";
+            case PI_Author: return L"AI";
+            case PI_Version: return L"1.0";
             default: return L"";
         }
     }
 
-    // 新版接口的 OnTimer 可能没有参数，或者参数类型已变
+    // 修正 2: 确保 OnTimer 签名匹配
     virtual void OnTimer() override {
         if (++m_counter >= m_next_interval) {
             m_counter = 0;
@@ -36,19 +36,20 @@ public:
         }
     }
 
-    // 适配 IPluginItem 相关的纯虚函数
-    virtual int GetItemCount() override { return 1; }
-    virtual const wchar_t* GetItemName(int item_index) override { return L"喝水计时"; }
+    // 修正 3: IPluginItem 相关接口，确保参数类型正确
+    virtual int GetItemCount() const override { return 1; }
+    virtual const wchar_t* GetItemName(int item_index) const override { return L"喝水计时"; }
     virtual const wchar_t* GetItemValueText(int item_index) override { return L""; }
-    virtual const wchar_t* GetItemValueSampleText(int item_index) override { return L""; }
+    virtual const wchar_t* GetItemValueSampleText(int item_index) const override { return L""; }
     virtual int GetItemWidth(int item_index) override { return 0; }
     virtual void OnClick(int item_index) override {}
     virtual void OnContextMenu(int item_index, HWND hWnd, int x, int y) override {}
     virtual int GetStaticValue(int item_index) override { return 0; }
     
-    // 对应报错末尾提到的 DataRequired 等缺失函数
     virtual void DataRequired() override {}
-    virtual void* GetItem(int item_index) override { return nullptr; }
+    
+    // 修正 4: GetItem 的返回类型必须是 IPluginItem*
+    virtual IPluginItem* GetItem(int item_index) override { return nullptr; }
 
     virtual void Release() override { delete this; }
 };
