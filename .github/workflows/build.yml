@@ -1,0 +1,22 @@
+name: Build TrafficMonitor Plugin
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: windows-latest # 关键：这会给一个带 SDK 的 Windows 环境
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Compile
+        run: |
+          cl.exe /LD /EHsc /DUNICODE /D_UNICODE plugin.cpp /link /OUT:DrinkWater.dll user32.lib
+
+      - name: Upload DLL
+        uses: actions/upload-artifact@v3
+        with:
+          name: DrinkWater-Plugin
+          path: DrinkWater.dll
