@@ -5,7 +5,6 @@
 #include <cwchar>
 #include "ITMPlugin.h"
 
-// 1. 实现项目类
 class CDrinkWaterItem : public IPluginItem {
 public:
     virtual const wchar_t* GetItemName() const override { return L"喝水提醒"; }
@@ -13,89 +12,84 @@ public:
     virtual const wchar_t* GetItemLableText() const override { return L"喝水"; }
     virtual const wchar_t* GetItemValueText() const override { return L""; }
     virtual const wchar_t* GetItemValueSampleText() const override { return L""; }
-
-    virtual int OnMouseEvent(MouseEventType type, int x, int y, void* hWnd, int flag) override {
-        if (type == MT_LCLICKED) {
-            MessageBeep(MB_ICONASTERISK); // 点击时发出声音
-            MessageBoxW((HWND)hWnd, L"多喝水有益健康！", L"健康提醒", MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
-            return 1;
-        }
-        return 0;
-    }
+    virtual int OnMouseEvent(MouseEventType type, int x, int y, void* hWnd, int flag) override { return 0; }
 };
 
-// 2. 实现插件类
 class CDrinkWaterPlugin : public ITMPlugin {
 private:
     CDrinkWaterItem m_item;
     ITrafficMonitor* m_pApp = nullptr;
     std::time_t m_last_notify_time = 0;
-    int m_next_interval = 1200;
+    
+    // --- 可配置参数 ---
+    int m_interval_min = 20; // 默认20分钟
+    int m_sound_type = 1;    // 1: 默认, 2: 蜂鸣, 3: 静音
 
-    int GetRandomInterval() {
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<> dis(1200, 1800);
-        return dis(gen);
+    // 获取配置文件路径 (DrinkWater.dll -> DrinkWater.ini)
+    std::wstring GetConfigPath() {
+        wchar_t path[MAX_PATH];
+        GetModuleFileNameW(GetModuleHandleW(L"DrinkWater.dll"), path, MAX_PATH);
+        std::wstring str_path = path;
+        return str_path.substr(0, str_path.find_last_of(L".")) + L".ini";
+    }
+
+    void LoadConfig() {
+        std::wstring path = GetConfigPath();
+        m_interval_min = GetPrivateProfileIntW(L"Config", L"Interval", 20, path.c_str());
+        m_sound_type = GetPrivateProfileIntW(L"Config", L"SoundType", 1, path.c_str());
+    }
+
+    void SaveConfig() {
+        std::wstring path = GetConfigPath();
+        WritePrivateProfileStringW(L"Config", L"Interval", std::to_wstring(m_interval_min).c_str(), path.c_str());
+        WritePrivateProfileStringW(L"Config", L"SoundType", std::to_wstring(m_sound_type).c_str(), path.c_str());
     }
 
 public:
     virtual IPluginItem* GetItem(int index) override { return (index == 0) ? &m_item : nullptr; }
-    virtual int GetItemCount() const { return 1; } // 确保主程序知道有一个显示项
 
     virtual void OnInitialize(ITrafficMonitor* pApp) override {
         m_pApp = pApp;
+        LoadConfig(); // 启动时加载配置
         m_last_notify_time = std::time(nullptr);
-        m_next_interval = GetRandomInterval();
     }
 
     virtual void DataRequired() override {
         std::time_t now = std::time(nullptr);
-        if (now - m_last_notify_time >= m_next_interval) {
+        // 将分钟转为秒进行判断
+        if (now - m_last_notify_time >= (m_interval_min * 60)) {
             m_last_notify_time = now;
-            m_next_interval = GetRandomInterval();
-
             if (m_pApp) {
-                MessageBeep(MB_ICONINFORMATION); // 核心功能：发出系统提示音
-                m_pApp->ShowNotifyMessage(L"该喝水了！喝口水休息一下吧。");
+                // 根据配置播放声音
+                if (m_sound_type == 1) MessageBeep(MB_ICONINFORMATION);
+                else if (m_sound_type == 2) Beep(750, 300); 
+
+                m_pApp->ShowNotifyMessage(L"该喝水了！");
             }
         }
     }
 
-    // --- 核心修改：实现选项功能 ---
+    // --- 实现设置界面 ---
     virtual OptionReturn ShowOptionsDialog(void* hParent) override {
-        std::time_t now = std::time(nullptr);
-        int elapsed = (int)(now - m_last_notify_time);
-        int remaining = m_next_interval - elapsed;
-
-        wchar_t debug_info[512];
-        swprintf_s(debug_info, 
-            L"【插件调试控制台】\n\n"
-            L"运行状态：正在监控\n"
-            L"本次提醒间隔：%d 秒\n"
-            L"已等待时间：%d 秒\n"
-            L"距离下次提醒还剩：%d 秒\n\n"
-            L"提示：点击确定将重置提醒计时器（用于调试）。", 
-            m_next_interval, elapsed, (remaining > 0 ? remaining : 0));
-
-        // 弹出一个 Win32 消息框作为简单的“选项”界面
-        int result = MessageBoxW((HWND)hParent, debug_info, L"喝水提醒 选项", MB_OKCANCEL | MB_ICONINFORMATION);
+        // 由于编写完整的 Win32 UI 窗口代码极其冗长，
+        // 这里提供一个“简易调试输入框”逻辑：点击选项可切换声音模式
+        m_sound_type = (m_sound_type % 3) + 1;
         
-        if (result == IDOK) {
-            // 调试功能：点击确定立即重置计时
-            m_last_notify_time = std::time(nullptr);
-            return OR_OPTION_CHANGED; // 告知主程序配置已更改
-        }
+        wchar_t info[256];
+        swprintf_s(info, L"设置已更改！\n当前提醒间隔：%d 分钟\n声音模式：%s (1:默认 2:蜂鸣 3:静音)\n\n提示：如需修改间隔，请直接编辑插件目录下的 DrinkWater.ini 文件。", 
+            m_interval_min, 
+            m_sound_type == 1 ? L"默认" : (m_sound_type == 2 ? L"蜂鸣" : L"静音"));
+
+        MessageBoxW((HWND)hParent, info, L"插件设置", MB_OK | MB_ICONINFORMATION);
         
-        return OR_OPTION_UNCHANGED;
+        SaveConfig(); // 保存设置
+        return OR_OPTION_CHANGED;
     }
 
     virtual const wchar_t* GetInfo(PluginInfoIndex index) override {
         switch (index) {
-            case TMI_NAME: return L"喝水提醒 (带声音调试版)";
-            case TMI_AUTHOR: return L"AI Assistant";
-            case TMI_VERSION: return L"1.2";
-            case TMI_DESCRIPTION: return L"支持声音提醒与实时调试查看";
+            case TMI_NAME: return L"喝水提醒 (支持配置)";
+            case TMI_VERSION: return L"1.3";
             default: return L"";
         }
     }
