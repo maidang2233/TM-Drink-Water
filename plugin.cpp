@@ -82,7 +82,8 @@ public:
 
 // 导出函数
 // 根据 SDK 说明，应返回全局/静态对象的指针
-extern "C" __declspec(dllexport) ITMPlugin* TMPluginGetInstance() {
+extern "C" __declspec(dllexport) ITMPlugin* TMPluginGetInstance() { // 加上 Get
     static CDrinkWaterPlugin instance;
     return &instance;
 }
+
