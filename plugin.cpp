@@ -3,16 +3,22 @@
 #include <string>
 #include "ITMPlugin.h"
 
-// 如果头文件里没定义，我们手动定义这些索引常量
-#ifndef PI_Name
-#define PI_Name (ITMPlugin::PluginInfoIndex)0
-#define PI_Description (ITMPlugin::PluginInfoIndex)1
-#define PI_Author (ITMPlugin::PluginInfoIndex)2
-#define PI_Version (ITMPlugin::PluginInfoIndex)3
-#endif
+// 实现具体的显示项目
+class CDrinkWaterItem : public IPluginItem {
+public:
+    virtual const wchar_t* GetItemName() const override { return L"喝水提醒"; }
+    virtual const wchar_t* GetItemValueText() override { return L""; }
+    virtual const wchar_t* GetItemValueSampleText() const override { return L""; }
+    virtual bool IsShownByDefault() override { return true; }
+    virtual int GetItemWidth() override { return 0; }
+    virtual void OnClick() override {}
+    virtual void OnContextMenu(HWND hWnd, int x, int y) override {}
+};
 
+// 实现插件主类
 class CDrinkWaterPlugin : public ITMPlugin {
 private:
+    CDrinkWaterItem m_item;
     int m_counter = 0;
     int m_next_interval = 1200;
 
@@ -24,16 +30,20 @@ private:
     }
 
 public:
-    // 修正：添加 const
+    virtual IPluginItem* GetItem(int index) override { return &m_item; }
+    virtual int GetItemCount() const override { return 1; }
+
     virtual const wchar_t* GetInfo(PluginInfoIndex index) override {
-        if (index == PI_Name) return L"喝水提醒";
-        if (index == PI_Description) return L"随机20-30分钟提醒";
-        if (index == PI_Author) return L"AI Assistant";
-        if (index == PI_Version) return L"1.0";
-        return L"";
+        // 使用新版枚举命名空间
+        switch (index) {
+            case PluginInfoIndex::Name: return L"喝水提醒";
+            case PluginInfoIndex::Description: return L"随机20-30分钟提醒";
+            case PluginInfoIndex::Author: return L"AI Assistant";
+            case PluginInfoIndex::Version: return L"1.0";
+            default: return L"";
+        }
     }
 
-    // 修正：某些版本 OnTimer 需要接收参数，我们改为最基础的尝试
     virtual void OnTimer() override {
         if (++m_counter >= m_next_interval) {
             m_counter = 0;
@@ -42,21 +52,11 @@ public:
         }
     }
 
-    // 修正：根据最新接口要求，补齐 const
-    virtual int GetItemCount() const override { return 1; }
-    virtual const wchar_t* GetItemName(int item_index) const override { return L"喝水提醒"; }
-    virtual const wchar_t* GetItemValueText(int item_index) override { return L""; }
-    virtual const wchar_t* GetItemValueSampleText(int item_index) const override { return L""; }
-    virtual int GetItemWidth(int item_index) override { return 0; }
-    virtual void OnClick(int item_index) override {}
-    virtual void OnContextMenu(int item_index, HWND hWnd, int x, int y) override {}
-    virtual int GetStaticValue(int item_index) override { return 0; }
-    
     virtual void DataRequired() override {}
-    virtual IPluginItem* GetItem(int item_index) override { return nullptr; }
     virtual void Release() override { delete this; }
 };
 
+// 导出函数
 extern "C" __declspec(dllexport) ITMPlugin* TMPluginInstance() {
     return new CDrinkWaterPlugin();
 }
